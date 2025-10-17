@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JobFit AI - Analisador de Vagas</title>
+    
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- TailwindCSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script>
+      // Polyfill simples se lucide não carregar
+      window.lucide = window.lucide || {
+        createIcons: () => {},
+        icons: new Proxy({}, {
+          get: () => ({ toSvg: () => '' })
+        })
+      };
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+
+    <!-- Libraries (UMD via CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/dayjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dayjs@1.11.10/plugin/relativeTime.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+    <script>pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js`;</script>
+    <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.4/dist/tesseract.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <style>
+        /* Basic styles and theme variables */
+        :root {
+            --background: #F8FAFC;
+            --panel: #FFFFFF;
+            --text-primary: #0F172A;
+            --text-secondary: #475569;
+            --border: #E2E8F0;
+            --primary: #3B82F6;
+            --primary-hover: #2563EB;
+        }
+
+        html.dark {
+            --background: #0F172A;
+            --panel: #1E293B;
+            --text-primary: #F8FAFC;
+            --text-secondary: #94A3B8;
+            --border: #334155;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--background);
+            color: var(--text-primary);
+            transition: background-color 0.3s ease, color 0.3s ease;
+        }
+        
+        /* Custom scrollbar for better dark mode experience */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--panel); }
+        ::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #64748b; }
+
+        /* Smooth transitions for UI elements */
+        .card, .btn, input, textarea, select {
+            transition: all 0.2s ease-in-out;
+        }
+
+        /* Custom focus ring for accessibility */
+        *:focus-visible {
+            outline: 2px solid var(--primary);
+            outline-offset: 2px;
+            box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.3);
+        }
+
+        /* Micro-animations */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .fade-in {
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .spinner {
+            animation: spin 1s linear infinite;
+        }
+
+        /* Hide scrollbar for textarea, but allow scrolling */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        
+        /* Tooltip styles */
+        .tooltip { position: relative; display: inline-block; }
+        .tooltip .tooltip-text {
+            visibility: hidden;
+            width: max-content;
+            background-color: #1E293B;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 5px 10px;
+            position: absolute;
+            z-index: 10;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -60px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        .tooltip:hover .tooltip-text { visibility: visible; opacity: 1; }
+    </style>
+</head>
+<body class="antialiased">
+    <div id="app" class="flex h-screen w-full bg-[var(--background)]">
+        <!-- Sidebar -->
+        <aside class="flex-shrink-0 w-16 bg-[var(--panel)] border-r border-[var(--border)] flex flex-col items-center py-4 space-y-4">
+            <a href="#dashboard" class="text-[var(--primary)] mb-4">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2L2 7V17L12 22L22 17V7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M2 7L12 12L22 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 12V22" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </a>
+            <nav class="flex flex-col items-center space-y-2">
+                <a href="#dashboard" class="nav-link p-2 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--background)] hover:text-[var(--primary)]" data-tooltip="Dashboard">
+                    <i data-lucide="layout-dashboard"></i>
+                </a>
+                <a href="#new-analysis" class="nav-link p-2 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--background)] hover:text-[var(--primary)]" data-tooltip="Nova Análise">
+                    <i data-lucide="file-plus-2"></i>
+                </a>
+                 <a href="#settings" class="nav-link p-2 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--background)] hover:text-[var(--primary)]" data-tooltip="Configurações">
+                    <i data-lucide="settings"></i>
+                </a>
+            </nav>
+            <div class="mt-auto flex flex-col items-center space-y-4">
+                <button id="theme-toggle" class="p-2 rounded-lg text-[var(--text-secondary)] hover:bg-[var(--background)] hover:text-[var(--primary)]" data-tooltip="Mudar Tema">
+                    <i data-lucide="sun" class="block dark:hidden"></i>
+                    <i data-lucide="moon" class="hidden dark:block"></i>
+                </button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <!-- Header -->
+            <header class="flex items-center justify-between p-4 border-b border-[var(--border)] bg-[var(--panel)] flex-shrink-0">
+                <h1 id="header-title" class="text-xl font-bold text-[var(--text-primary)]">Dashboard</h1>
+                <div class="flex items-center space-x-4">
+                    <div class="relative">
+                        <i data-lucide="search" class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[var(--text-secondary)]"></i>
+                        <input id="global-search" type="search" placeholder="Buscar análises... (/)" class="w-64 pl-10 pr-4 py-2 rounded-lg bg-[var(--background)] border border-[var(--border)] focus:ring-2 focus:ring-[var(--primary)] focus:border-[var(--primary)]">
+                    </div>
+                    <button id="new-analysis-btn" class="flex items-center space-x-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)]">
+                        <i data-lucide="plus" class="w-5 h-5"></i>
+                        <span>Nova Análise (N)</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Page Content -->
+            <main class="flex-1 overflow-y-auto p-4 md:p-6 lg:p-8">
+                
+                <!-- Dashboard View -->
+                <div id="view-dashboard" class="view">
+                    <!-- Filters and actions will be here -->
+                    <div id="analysis-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                        <!-- Analysis cards are dynamically inserted here -->
+                    </div>
+                     <div id="empty-dashboard" class="hidden text-center py-20">
+                        <i data-lucide="folder-search" class="mx-auto h-16 w-16 text-[var(--text-secondary)]"></i>
+                        <h3 class="mt-2 text-lg font-semibold text-[var(--text-primary)]">Nenhuma análise encontrada</h3>
+                        <p class="mt-1 text-[var(--text-secondary)]">Comece criando uma nova análise para comparar seu CV com uma vaga.</p>
+                        <button class="mt-6 new-analysis-link flex mx-auto items-center space-x-2 px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)]">
+                            <i data-lucide="plus" class="w-5 h-5"></i>
+                            <span>Criar primeira análise</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- New Analysis View -->
+                <div id="view-new-analysis" class="view hidden">
+                    <div class="max-w-4xl mx-auto">
+                        <form id="new-analysis-form" class="space-y-8">
+                            <div>
+                                <h2 class="text-2xl font-bold">Informações Básicas</h2>
+                                <p class="text-[var(--text-secondary)]">Preencha os dados do candidato e da vaga (opcional).</p>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div class="space-y-2">
+                                    <label for="candidate-name" class="font-medium">Nome do Candidato</label>
+                                    <input id="candidate-name" type="text" placeholder="Ex: João da Silva" class="w-full p-2 rounded-lg bg-[var(--panel)] border border-[var(--border)]" required>
+                                </div>
+                                <div class="space-y-2">
+                                    <label for="job-title" class="font-medium">Título da Vaga (Opcional)</label>
+                                    <input id="job-title" type="text" placeholder="Ex: Desenvolvedor Frontend Sênior" class="w-full p-2 rounded-lg bg-[var(--panel)] border border-[var(--border)]">
+                                </div>
+                                 <div class="space-y-2">
+                                    <label for="candidate-email" class="font-medium">Email (Opcional)</label>
+                                    <input id="candidate-email" type="email" placeholder="Ex: joao.silva@email.com" class="w-full p-2 rounded-lg bg-[var(--panel)] border border-[var(--border)]">
+                                </div>
+                                <div class="space-y-2">
+                                    <label for="job-company" class="font-medium">Empresa (Opcional)</label>
+                                    <input id="job-company" type="text" placeholder="Ex: Acme Corp" class="w-full p-2 rounded-lg bg-[var(--panel)] border border-[var(--border)]">
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <h2 class="text-2xl font-bold mt-8">Fontes de Conteúdo</h2>
+                                <p class="text-[var(--text-secondary)]">Forneça o CV e a descrição da vaga (opcional).</p>
+                            </div>
+
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                <!-- CV Input -->
+                                <div class="space-y-4">
+                                    <h3 class="text-lg font-semibold flex items-center"><i data-lucide="file-text" class="mr-2"></i>Currículo (CV)</h3>
+                                    <div class="p-4 border-2 border-dashed border-[var(--border)] rounded-2xl text-center" id="cv-dropzone">
+                                        <p class="text-[var(--text-secondary)] mb-2">Arraste e solte o arquivo ou</p>
+                                        <input type="file" id="cv-upload" class="hidden" accept=".pdf,.docx,.txt,.md,.png,.jpg,.jpeg">
+                                        <button type="button" id="cv-upload-btn" class="font-semibold text-[var(--primary)] hover:underline">escolha um arquivo</button>
+                                        <p class="text-xs text-[var(--text-secondary)] mt-1">.pdf, .docx, .txt, .md, .png, .jpg</p>
+                                        <div id="cv-filename" class="mt-2 text-sm font-medium"></div>
+                                    </div>
+                                    <div class="text-center text-[var(--text-secondary)]">ou</div>
+                                    <textarea id="cv-paste" rows="8" placeholder="Cole o conteúdo do CV aqui..." class="w-full p-2 rounded-lg bg-[var(--panel)] border border-[var(--border)] no-scrollbar"></textarea>
+                                </div>
+                                <!-- Job Description Input -->
+                                <div class="space-y-4">
+                                    <h3 class="text-lg font-semibold flex items-center"><i data-lucide="briefcase" class="mr-2"></i>Descrição da Vaga (Opcional)</h3>
+                                    <div class="p-4 border-2 border-dashed border-[var(--border)] rounded-2xl text-center" id="job-dropzone">
+                                        <p class="text-[var(--text-secondary)] mb-2">Arraste e solte o arquivo ou</p>
+                                        <input type="file" id="job-upload" class="hidden" accept=".pdf,.docx,.txt,.md">
+                                        <button type="button" id="job-upload-btn" class="font-semibold text-[var(--primary)] hover:underline">escolha um arquivo</button>
+                                        <p class="text-xs text-[var(--text-secondary)] mt-1">.pdf, .docx, .txt, .md</p>
+                                         <div id="job-filename" class="mt-2 text-sm font-medium"></div>
+                                    </div>
+                                    <div class="text-center text-[var(--text-secondary)]">ou</div>
+                                    <textarea id="job-paste" rows="8" placeholder="Cole a descrição da vaga aqui..." class="w-full p-2 rounded-lg bg-[var(--panel)] border border-[var(--border)] no-scrollbar"></textarea>
+                                </div>
+                            </div>
+                            
+                             <div>
+                                <h3 class="text-lg font-semibold mt-4">Links (Opcional)</h3>
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <input id="link-portfolio" type="url" placeholder="Portfólio" class="w-full p-2 rounded-lg bg-[var(--panel)] border border-[var(--border)]">
+                                    <input id="link-github" type="url" placeholder="GitHub" class="w-full p-2 rounded-lg bg-[var(--panel)] border border-[var(--border)]">
+                                    <input id="link-linkedin" type="url" placeholder="LinkedIn" class="w-full p-2 rounded-lg bg-[var(--panel)] border border-[var(--border)]">
+                                </div>
+                            </div>
+                            
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-end pt-4">
+                                <div class="space-y-2">
+                                    <label for="question-count" class="font-medium text-sm">Nº de Perguntas (por tipo)</label>
+                                    <input id="question-count" type="number" value="3" min="1" max="10" class="w-full p-2 rounded-lg bg-[var(--panel)] border border-[var(--border)]">
+                                </div>
+                                <div class="text-right">
+                                    <button type="submit" id="start-analysis-btn" class="inline-flex items-center justify-center space-x-2 px-6 py-3 bg-[var(--primary)] text-white font-bold rounded-lg hover:bg-[var(--primary-hover)] disabled:bg-gray-400 disabled:cursor-not-allowed">
+                                        <i data-lucide="sparkles" class="w-5 h-5"></i>
+                                        <span>Analisar Perfil</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Analysis Detail View -->
+                <div id="view-analysis-detail" class="view hidden">
+                    <!-- Detail Header -->
+                    <div class="mb-6">
+                        <h2 id="detail-job-title" class="text-3xl font-bold"></h2>
+                        <p id="detail-candidate-info" class="text-lg text-[var(--text-secondary)]"></p>
+                    </div>
+                    <!-- Tabs -->
+                    <div class="border-b border-[var(--border)]">
+                        <nav id="detail-tabs" class="-mb-px flex space-x-8" aria-label="Tabs">
+                           <!-- Tabs dynamically inserted -->
+                        </nav>
+                    </div>
+                    <!-- Tab Content -->
+                    <div id="detail-tab-content" class="mt-6">
+                        <!-- Content dynamically inserted -->
+                    </div>
+                </div>
+                
+                <!-- Settings View -->
+                <div id="view-settings" class="view hidden">
+                    <div class="max-w-2xl mx-auto space-y-8">
+                        <div>
+                            <h2 class="text-2xl font-bold">Configurações da IA</h2>
+                            <p class="text-[var(--text-secondary)]">Forneça suas credenciais para a API de texto.</p>
+                        </div>
+                        <div class="p-6 bg-[var(--panel)] rounded-2xl shadow-sm border border-[var(--border)] space-y-4">
+                             <div class="p-4 text-sm bg-yellow-100 dark:bg-yellow-900/50 text-yellow-800 dark:text-yellow-200 rounded-lg flex items-start space-x-3">
+                                <i data-lucide="alert-triangle" class="w-5 h-5 flex-shrink-0 mt-0.5"></i>
+                                <span>O conteúdo do CV e da vaga será enviado para o provedor de IA que você configurar abaixo. Suas chaves de API são salvas apenas no seu navegador.</span>
+                            </div>
+                            <div>
+                                <label for="api-key" class="font-medium">Chave da API (API Key)</label>
+                                <input id="api-key" type="password" placeholder="AIza..." class="mt-1 w-full p-2 rounded-lg bg-[var(--background)] border border-[var(--border)]">
+                            </div>
+                            <div>
+                                <label for="api-url" class="font-medium">URL da API de Texto</label>
+                                <input id="api-url" type="url" placeholder="https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent" class="mt-1 w-full p-2 rounded-lg bg-[var(--background)] border border-[var(--border)]">
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <div class="flex items-center space-x-2">
+                                    <input type="checkbox" id="remember-key" class="rounded">
+                                    <label for="remember-key">Lembrar chave e URL</label>
+                                </div>
+                                <button id="save-settings-btn" class="px-4 py-2 bg-[var(--primary)] text-white rounded-lg hover:bg-[var(--primary-hover)]">Salvar</button>
+                            </div>
+                        </div>
+                        <div>
+                            <h2 class="text-2xl font-bold mt-8">Dados do Aplicativo</h2>
+                             <div class="p-6 bg-[var(--panel)] rounded-2xl shadow-sm border border-[var(--border)] space-y-4">
+                                <p class="text-[var(--text-secondary)]">Exporte todas as suas análises ou apague todos os dados locais.</p>
+                                <div class="flex space-x-4">
+                                    <button id="export-all-btn" class="flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700">
+                                        <i data-lucide="download" class="w-5 h-5"></i>
+                                        <span>Exportar Tudo (JSON)</span>
+                                    </button>
+                                    <button id="delete-all-btn" class="flex items-center space-x-2 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">
+                                        <i data-lucide="trash-2" class="w-5 h-5"></i>
+                                        <span>Apagar Tudo</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed bottom-5 right-5 flex items-center p-4 w-full max-w-xs text-gray-500 bg-white rounded-2xl shadow-lg dark:text-gray-400 dark:bg-gray-800 ring-1 ring-black ring-opacity-5 translate-y-[200%] transition-transform duration-500 ease-in-out" role="alert">
+        <div id="toast-icon" class="inline-flex flex-shrink-0 justify-center items-center w-8 h-8 text-green-500 bg-green-100 rounded-lg dark:bg-green-800 dark:text-green-200">
+             <i data-lucide="check" class="w-5 h-5"></i>
+        </div>
+        <div id="toast-message" class="ml-3 text-sm font-normal">Item moved successfully.</div>
+        <button type="button" class="ml-auto -mx-1.5 -my-1.5 bg-white text-gray-400 hover:text-gray-900 rounded-lg focus:ring-2 focus:ring-gray-300 p-1.5 hover:bg-gray-100 inline-flex h-8 w-8 dark:text-gray-500 dark:hover:text-white dark:bg-gray-800 dark:hover:bg-gray-700" data-dismiss-target="#toast" aria-label="Close" onclick="App.hideToast()">
+            <span class="sr-only">Close</span>
+            <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+    </div>
+    
+    <!-- Loader Modal -->
+    <div id="loader-modal" class="hidden fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50">
+        <div class="bg-[var(--panel)] p-8 rounded-2xl shadow-2xl text-center flex flex-col items-center">
+            <div class="spinner w-12 h-12 border-4 border-t-[var(--primary)] border-gray-200 dark:border-gray-600 rounded-full"></div>
+            <p id="loader-message" class="mt-4 text-lg font-semibold">Analisando documentos...</p>
+            <p id="loader-submessage" class="text-sm text-[var(--text-secondary)] mt-1">Isso pode levar alguns instantes.</p>
+        </div>
+    </div>
+
+    <script type="module">
+        // Initialize dayjs plugins
+        dayjs.extend(window.dayjs_plugin_relativeTime);
+
+        const App = {
+            // --- STATE ---
+            state: {
+                analyses: [],
+                settings: {
+                    theme: 'dark',
+                    aiConfig: {
+                        apiKey: 'AIzaSyA0LecQ2UW0nZvLTlnp-Utp4NHxVeIfvX8',
+                        apiUrl: 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro-latest:generateContent', // Default for Gemini
+                        remember: false
+                    }
+                },
+                currentView: 'dashboard',
+                currentAnalysisId: null,
+                currentInterview: {
+                    analysisId: null,
+                    questionType: 'behavioral',
+                    currentIndex: 0,
+                    userAnswers: {}
+                }
+            },
+
+            // --- INITIALIZATION ---
+            init() {
+                console.log("JobFit AI Initializing...");
+                this.loadState();
+                this.applyTheme();
+                this.initEventListeners();
+
+                // Initial navigation based on hash or default to dashboard
+                const hash = window.location.hash.slice(1);
+                if (hash.startsWith('analysis/')) {
+                    const id = hash.split('/')[1];
+                    this.navigateTo('analysis-detail', id);
+                } else if (hash === 'new-analysis' || hash === 'settings') {
+                    this.navigateTo(hash);
+                } else {
+                    this.navigateTo('dashboard');
+                }
+                
+                lucide.createIcons();
+            },
+
+            // --- STATE MANAGEMENT ---
+            loadState() {
+                const savedAnalyses = localStorage.getItem('jobfit.analyses');
+                const savedSettings = localStorage.getItem('jobfit.settings');
+
+                if (savedSettings) {
+                    this.state.settings = JSON.parse(savedSettings);
+                }
+                
+                if (savedAnalyses) {
+                    this.state.analyses = JSON.parse(savedAnalyses);
+                } else {
+                    this.seedData(); // Seed if no data exists
+                }
+            },
+
+            saveAnalyses() {
+                localStorage.setItem('jobfit.analyses', JSON.stringify(this.state.analyses));
+            },
+            
+            saveSettings() {
+                // Do not save API key if "remember" is not checked
+                const settingsToSave = JSON.parse(JSON.stringify(this.state.settings));
+                if (!settingsToSave.aiConfig.remember) {
+                    settingsToSave.aiConfig.apiKey = '';
+                }
+                localStorage.setItem('jobfit.settings', JSON.stringify(settingsToSave));
+            },
+
+            // --- UI & THEME ---
+            applyTheme() {
+                if (this.state.settings.theme === 'dark') {
+                    document.documentElement.classList.add('dark');
+                } else {
+                    document.documentElement.classList.remove('dark');
+                }
+            },
+            
+            toggleTheme() {
+                this.state.settings.theme = this.state.settings.theme === 'dark' ? 'light' : 'dark';
+                this.applyTheme();
+                this.saveSettings();
+                lucide.createIcons(); // Re-render icons for theme change
+            },
+            
+            showToast(message, type = 'success') {
+                const toastEl = document.getElementById('toast');
+                const iconEl = document.getElementById('toast-icon');
+                const messageEl = document.getElementById('toast-message');
+                
+                toastEl.classList.remove('translate-y-[200%]');
+                messageEl.textContent = message;
+                
+                iconEl.innerHTML = '';
+                iconEl.className = 'inline-flex flex-shrink-0 justify-center items-center w-8 h-8 rounded-lg';
+
+                if (type === 'success') {
+                    iconEl.classList.add('text-green-500', 'bg-green-100', 'dark:bg-green-800', 'dark:text-green-200');
+                    iconEl.innerHTML = `<i data-lucide="check" class="w-5 h-5"></i>`;
+                } else if (type === 'error') {
+                    iconEl.classList.add('text-red-500', 'bg-red-100', 'dark:bg-red-800', 'dark:text-red-200');
+                    iconEl.innerHTML = `<i data-lucide="alert-circle" class="w-5 h-5"></i>`;
+                } else { // info
+                    iconEl.classList.add('text-blue-500', 'bg-blue-100', 'dark:bg-blue-800', 'dark:text-blue-200');
+                    iconEl.innerHTML = `<i data-lucide="info" class="w-5 h-5"></i>`;
+                }
+
+                lucide.createIcons();
+                
+                setTimeout(() => this.hideToast(), 5000);
+            },
+            
+            hideToast() {
+                document.getElementById('toast').classList.add('translate-y-[200%]');
+            },
+
+            showLoader(message, submessage = '') {
+                document.getElementById('loader-message').textContent = message;
+                document.getElementById('loader-submessage').textContent = submessage;
+                document.getElementById('loader-modal').classList.remove('hidden');
+            },
+
+            hideLoader() {
+                document.getElementById('loader-modal').classList.add('hidden');
+            },
+
+            // --- NAVIGATION & ROUTING ---
+            navigateTo(view, id = null) {
+                document.querySelectorAll('.view').forEach(v => v.classList.add('hidden'));
+                document.getElementById(`view-${view}`).classList.remove('hidden');
+                
+                this.state.currentView = view;
+                this.state.currentAnalysisId = id;
+                window.location.hash = id ? `${view}/${id}` : view;
+
+                // Update header title and active sidebar link
+                const headerTitle = document.getElementById('header-title');
+                document.querySelectorAll('.nav-link').forEach(link => {
+                    link.classList.remove('text-[var(--primary)]', 'bg-[var(--background)]');
+                    if (link.href.endsWith(`#${view}`)) {
+                         link.classList.add('text-[var(--primary)]', 'bg-[var(--background)]');
+                    }
+                });
+
+
+                switch(view) {
+                    case 'dashboard':
+                        headerTitle.textContent = 'Dashboard';
+                        this.renderDashboard();
+                        break;
+                    case 'new-analysis':
+                        headerTitle.textContent = 'Nova Análise';
+                        this.resetNewAnalysisForm();
+                        break;
+                    case 'analysis-detail':
+                        this.renderAnalysisDetail(id);
+                        break;
+                    case 'settings':
+                         headerTitle.textContent = 'Configurações';
+                         this.renderSettings();
+                         break;
+                }
+            },
+            
+            // --- EVENT LISTENERS ---
+            initEventListeners() {
+                // Theme Toggle
+                document.getElementById('theme-toggle').addEventListener('click', () => this.toggleTheme());
+
+                // Navigation
+                document.querySelectorAll('.nav-link, #new-analysis-btn, .new-analysis-link').forEach(el => {
+                    el.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        const href = e.currentTarget.getAttribute('href');
+                        if (href) {
+                            this.navigateTo(href.slice(1));
+                        } else {
+                            // Handles #new-analysis-btn and .new-analysis-link buttons
+                            this.navigateTo('new-analysis');
+                        }
+                    });
+                });
+                
+                // New Analysis Form
+                document.getElementById('new-analysis-form').addEventListener('submit', (e) => {
+                    e.preventDefault();
+                    this.handleNewAnalysisSubmit();
+                });
+                
+                ['cv', 'job'].forEach(type => {
+                    const dropzone = document.getElementById(`${type}-dropzone`);
+                    const uploadInput = document.getElementById(`${type}-upload`);
+                    const uploadBtn = document.getElementById(`${type}-upload-btn`);
+                    const filenameEl = document.getElementById(`${type}-filename`);
+
+                    uploadBtn.addEventListener('click', () => uploadInput.click());
+                    dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('border-[var(--primary)]'); });
+                    dropzone.addEventListener('dragleave', () => dropzone.classList.remove('border-[var(--primary)]'));
+                    dropzone.addEventListener('drop', (e) => {
+                        e.preventDefault();
+                        dropzone.classList.remove('border-[var(--primary)]');
+                        if (e.dataTransfer.files.length) {
+                            uploadInput.files = e.dataTransfer.files;
+                            filenameEl.textContent = e.dataTransfer.files[0].name;
+                        }
+                    });
+                    uploadInput.addEventListener('change', () => {
+                        if (uploadInput.files.length) {
+                             filenameEl.textContent = uploadInput.files[0].name;
+                        } else {
+                            filenameEl.textContent = '';
+                        }
+                    });
+                });
+                
+                // Settings
+                document.getElementById('save-settings-btn').addEventListener('click', () => this.handleSaveSettings());
+                document.getElementById('export-all-btn').addEventListener('click', () => this.exportAllAnalyses());
+                document.getElementById('delete-all-btn').addEventListener('click', () => this.deleteAllAnalyses());
+                
+                // Global search
+                const searchInput = document.getElementById('global-search');
+                searchInput.addEventListener('input', (e) => {
+                    if (this.state.currentView === 'dashboard') {
+                        this.renderDashboard(e.target.value);
+                    }
+                });
+                
+                // Keyboard shortcuts
+                document.addEventListener('keydown', (e) => {
+                    const isMac = navigator.platform.toUpperCase().indexOf('MAC') >= 0;
+                    const modKey = isMac ? e.metaKey : e.ctrlKey;
+                    
+                    if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
+                        if(e.key === 'Escape') document.activeElement.blur();
+                        return; // Don't trigger shortcuts when typing
+                    }
+
+                    switch(e.key.toLowerCase()) {
+                        case '/': e.preventDefault(); searchInput.focus(); break;
+                        case 'n': e.preventDefault(); this.navigateTo('new-analysis'); break;
+                        case 'escape': this.navigateTo('dashboard'); break; // Or close modal
+                    }
+                    if (modKey && e.key.toLowerCase() === 'k') {
+                        e.preventDefault(); searchInput.focus();
+                    }
+                });
+                
+                window.addEventListener('hashchange', () => {
+                    const hash = window.location.hash.slice(1);
+                    const [view, id] = hash.split('/');
+                    if (view && view !== this.state.currentView) {
+                        this.navigateTo(view, id);
+                    }
+                });
+            },
+            
+            // --- RENDERING ---
+            renderDashboard(searchTerm = '') {
+                const listEl = document.getElementById('analysis-list');
+                const emptyEl = document.getElementById('empty-dashboard');
+                listEl.innerHTML = '';
+
+                const filteredAnalyses = this.state.analyses.filter(a => {
+                    const term = searchTerm.toLowerCase();
+                    return a.candidate.name.toLowerCase().includes(term) ||
+                           (a.job.title && a.job.title.toLowerCase().includes(term)) ||
+                           (a.job.company && a.job.company.toLowerCase().includes(term));
+                }).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
+
+                if (filteredAnalyses.length === 0) {
+                    emptyEl.classList.remove('hidden');
+                    listEl.classList.add('hidden');
+                    return;
+                }
+                
+                emptyEl.classList.add('hidden');
+                listEl.classList.remove('hidden');
+
+                filteredAnalyses.forEach(analysis => {
+                    const score = analysis.ai.overall_fit;
+                    let scoreHtml = '';
+                    if (score !== null && score !== undefined) {
+                        let scoreColor = 'bg-yellow-500';
+                        if (score >= 80) scoreColor = 'bg-green-500';
+                        if (score < 50) scoreColor = 'bg-red-500';
+                        scoreHtml = `<span class="text-xs font-medium text-white px-2 py-1 rounded-full ${scoreColor}">${score}% Fit</span>`;
+                    }
+
+                    const card = document.createElement('div');
+                    card.className = 'card bg-[var(--panel)] p-6 rounded-2xl shadow-sm border border-[var(--border)] flex flex-col hover:shadow-lg hover:-translate-y-1 fade-in';
+                    card.innerHTML = `
+                        <div class="flex-grow">
+                            <div class="flex justify-between items-start">
+                                ${scoreHtml}
+                                <div class="relative group ml-auto">
+                                    <button class="options-btn p-1 rounded-full hover:bg-[var(--background)]" data-id="${analysis.id}">
+                                        <i data-lucide="more-vertical" class="w-5 h-5 text-[var(--text-secondary)]"></i>
+                                    </button>
+                                    <div class="options-menu hidden absolute right-0 mt-2 w-48 bg-[var(--panel)] rounded-lg shadow-xl border border-[var(--border)] z-10">
+                                        <a href="#" class="block px-4 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--background)]" data-action="duplicate" data-id="${analysis.id}">Duplicar</a>
+                                        <a href="#" class="block px-4 py-2 text-sm text-[var(--text-primary)] hover:bg-[var(--background)]" data-action="export-json" data-id="${analysis.id}">Exportar JSON</a>
+                                        <a href="#" class="block px-4 py-2 text-sm text-red-500 hover:bg-[var(--background)]" data-action="delete" data-id="${analysis.id}">Excluir</a>
+                                    </div>
+                                </div>
+                            </div>
+                            <h3 class="mt-4 font-bold text-lg text-[var(--text-primary)]">${analysis.job.title || `Análise de ${analysis.candidate.name}`}</h3>
+                            <p class="text-[var(--text-secondary)] text-sm">${analysis.candidate.name}</p>
+                            ${analysis.job.company ? `<p class="text-xs text-[var(--text-secondary)] mt-1">${analysis.job.company}</p>` : ''}
+                        </div>
+                        <div class="mt-4 pt-4 border-t border-[var(--border)] flex justify-between items-center">
+                            <span class="text-xs text-[var(--text-secondary)]">${dayjs(analysis.createdAt).fromNow()}</span>
+                            <a href="#analysis-detail/${analysis.id}" class="view-btn text-sm font-semibold text-[var(--primary)] hover:underline" data-id="${analysis.id}">Ver Detalhes &rarr;</a>
+                        </div>
+                    `;
+                    listEl.appendChild(card);
+                });
+                lucide.createIcons();
+                
+                // Add event listeners for new elements
+                listEl.querySelectorAll('.view-btn').forEach(btn => btn.addEventListener('click', e => {
+                    e.preventDefault();
+                    this.navigateTo('analysis-detail', e.currentTarget.dataset.id);
+                }));
+
+                listEl.querySelectorAll('.options-btn').forEach(btn => btn.addEventListener('click', e => {
+                    e.stopPropagation();
+                    const menu = e.currentTarget.nextElementSibling;
+                    // Hide other menus
+                    listEl.querySelectorAll('.options-menu').forEach(m => { if (m !== menu) m.classList.add('hidden'); });
+                    menu.classList.toggle('hidden');
+                }));
+
+                listEl.querySelectorAll('.options-menu a').forEach(link => link.addEventListener('click', e => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const { action, id } = e.currentTarget.dataset;
+                    this.handleAnalysisAction(action, id);
+                    e.currentTarget.parentElement.classList.add('hidden');
+                }));
+                 
+                document.addEventListener('click', (e) => {
+                     if (!e.target.closest('.options-btn')) {
+                        listEl.querySelectorAll('.options-menu').forEach(m => m.classList.add('hidden'));
+                     }
+                });
+
+            },
+
+            renderAnalysisDetail(id) {
+                const analysis = this.state.analyses.find(a => a.id === id);
+                if (!analysis) {
+                    this.showToast('Análise não encontrada.', 'error');
+                    this.navigateTo('dashboard');
+                    return;
+                }
+                
+                const headerJobTitle = analysis.job.title || `Análise de Carreira`;
+                document.getElementById('header-title').textContent = `Análise: ${headerJobTitle}`;
+                document.getElementById('detail-job-title').textContent = headerJobTitle;
+                document.getElementById('detail-candidate-info').textContent = `${analysis.candidate.name} ${analysis.job.company ? `• ${analysis.job.company}` : ''}`;
+                
+                const tabsContainer = document.getElementById('detail-tabs');
+                const tabs = [
+                    { id: 'summary', label: 'Resumo' },
+                    { id: 'gaps', label: 'Gaps & Plano de Estudos' },
+                    { id: 'interview', label: 'Entrevista' },
+                    { id: 'documents', label: 'Documentos' },
+                ];
+
+                tabsContainer.innerHTML = tabs.map((tab, index) => `
+                    <a href="#" class="tab-link whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm ${index === 0 ? 'border-[var(--primary)] text-[var(--primary)]' : 'border-transparent text-[var(--text-secondary)] hover:text-[var(--text-primary)] hover:border-gray-300'}" data-tab="${tab.id}">${tab.label}</a>
+                `).join('');
+
+                this.renderAnalysisTab('summary', analysis);
+
+                tabsContainer.querySelectorAll('.tab-link').forEach(link => {
+                    link.addEventListener('click', e => {
+                        e.preventDefault();
+                        tabsContainer.querySelectorAll('.tab-link').forEach(l => {
+                            l.classList.remove('border-[var(--primary)]', 'text-[var(--primary)]');
+                            l.classList.add('border-transparent', 'text-[var(--text-secondary)]', 'hover:text-[var(--text-primary)]', 'hover:border-gray-300');
+                        });
+                        e.currentTarget.classList.add('border-[var(--primary)]', 'text-[var(--primary)]');
+                        e.currentTarget.classList.remove('border-transparent', 'text-[var(--text-secondary)]');
+                        this.renderAnalysisTab(e.currentTarget.dataset.tab, analysis);
+                    });
+                });
+            },
+            
+            renderAnalysisTab(tabId, analysis) {
+                const contentEl = document.getElementById('detail-tab-content');
+                contentEl.innerHTML = '';
+                
+                switch(tabId) {
+                    case 'summary': this.renderSummaryTab(contentEl, analysis); break;
+                    case 'gaps': this.renderGapsTab(contentEl, analysis); break;
+                    case 'interview': this.renderInterviewTab(contentEl, analysis); break;
+                    case 'documents': this.renderDocumentsTab(contentEl, analysis); break;
+                }
+                lucide.createIcons();
+            },
+            
+            renderSummaryTab(container, analysis) {
+                const { ai } = analysis;
+                const score = ai.overall_fit;
+                let scoreHtml = '';
+                if (score !== null && score !== undefined) {
+                    let scoreColorClass = 'text-yellow-400 border-yellow-400 bg-yellow-400/10';
+                    if (score >= 80) scoreColorClass = 'text-green-400 border-green-400 bg-green-400/10';
+                    if (score < 50) scoreColorClass = 'text-red-400 border-red-400 bg-red-400/10';
+                    scoreHtml = `
+                        <div class="bg-[var(--panel)] p-6 rounded-2xl shadow-sm border border-[var(--border)]">
+                           <h3 class="font-semibold text-lg mb-2">Aderência Geral</h3>
+                           <div class="text-center">
+                               <p class="text-6xl font-bold">${score}<span class="text-3xl text-[var(--text-secondary)]">%</span></p>
+                               <span class="mt-2 inline-block text-sm font-medium px-3 py-1 rounded-full ${scoreColorClass}">
+                                   ${score >= 80 ? 'Excelente' : score >= 50 ? 'Bom' : 'Requer Atenção'}
+                               </span>
+                           </div>
+                       </div>`;
+                }
+
+                const requirementsHtml = (ai.must_have_matches || ai.nice_to_have) ? `
+                    <div class="lg:col-span-2 space-y-6">
+                        ${ai.must_have_matches ? `
+                        <div class="bg-[var(--panel)] p-6 rounded-2xl shadow-sm border border-[var(--border)]">
+                            <h3 class="font-semibold text-lg mb-4">Requisitos Obrigatórios (Must-have)</h3>
+                            <ul id="must-have-list" class="space-y-4"></ul>
+                        </div>` : ''}
+                        ${ai.nice_to_have ? `
+                        <div class="bg-[var(--panel)] p-6 rounded-2xl shadow-sm border border-[var(--border)]">
+                            <h3 class="font-semibold text-lg mb-4">Requisitos Desejáveis (Nice-to-have)</h3>
+                            <ul id="nice-to-have-list" class="space-y-4"></ul>
+                        </div>` : ''}
+                    </div>` : '';
+                
+                container.innerHTML = `
+                    <div class="space-y-6">
+                         <div class="bg-[var(--panel)] p-6 rounded-2xl shadow-sm border border-[var(--border)]">
+                            <h3 class="font-semibold text-lg mb-4">Resumo de Carreira e Potencial</h3>
+                            <p class="text-[var(--text-secondary)] mb-4">${ai.career_summary.summary_text}</p>
+                            <h4 class="font-semibold mb-2">Cargos Sugeridos:</h4>
+                            <ul class="space-y-2">
+                                ${ai.career_summary.suggested_roles.map(role => `
+                                    <li class="flex items-start space-x-3">
+                                        <i data-lucide="star" class="w-4 h-4 text-yellow-500 mt-1"></i>
+                                        <div>
+                                            <p class="font-medium">${role.title}</p>
+                                            <p class="text-sm text-[var(--text-secondary)]">${role.reason}</p>
+                                        </div>
+                                    </li>
+                                `).join('')}
+                            </ul>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                            <div class="lg:col-span-1 space-y-6">
+                                ${scoreHtml}
+                                <div class="bg-[var(--panel)] p-6 rounded-2xl shadow-sm border border-[var(--border)]">
+                                    <h3 class="font-semibold text-lg mb-4">Análise por Dimensão</h3>
+                                    <canvas id="fit-chart"></canvas>
+                                </div>
+                            </div>
+                            ${requirementsHtml}
+                        </div>
+                    </div>
+                `;
+                
+                const renderReqList = (listId, items) => {
+                    const listEl = document.getElementById(listId);
+                    if (!listEl) return;
+                    if (!items || items.length === 0) {
+                        listEl.innerHTML = `<li class="text-[var(--text-secondary)]">Nenhum item encontrado.</li>`;
+                        return;
+                    }
+                    listEl.innerHTML = items.map(item => `
+                        <li class="flex items-start space-x-3">
+                            <div>
+                                ${item.match 
+                                    ? `<i data-lucide="check-circle-2" class="w-5 h-5 text-green-500"></i>`
+                                    : `<i data-lucide="x-circle" class="w-5 h-5 text-red-500"></i>`
+                                }
+                            </div>
+                            <div>
+                                <p class="font-medium">${item.req}</p>
+                                <p class="text-sm text-[var(--text-secondary)] italic mt-1">Evidência: ${item.evidence || 'Não encontrada'}</p>
+                            </div>
+                        </li>
+                    `).join('');
+                };
+
+                renderReqList('must-have-list', ai.must_have_matches);
+                renderReqList('nice-to-have-list', ai.nice_to_have);
+                
+                this.renderFitChart(ai.dimensions);
+            },
+            
+            renderFitChart(dimensions) {
+                const ctx = document.getElementById('fit-chart').getContext('2d');
+                if (!ctx) return;
+                const labels = dimensions.map(d => d.label);
+                const data = dimensions.map(d => d.score);
+                
+                new Chart(ctx, {
+                    type: 'radar',
+                    data: {
+                        labels: labels,
+                        datasets: [{
+                            label: 'Pontuação',
+                            data: data,
+                            backgroundColor: 'rgba(59, 130, 246, 0.2)',
+                            borderColor: 'rgba(59, 130, 246, 1)',
+                            borderWidth: 2,
+                            pointBackgroundColor: 'rgba(59, 130, 246, 1)',
+                            pointBorderColor: '#fff',
+                            pointHoverBackgroundColor: '#fff',
+                            pointHoverBorderColor: 'rgba(59, 130, 246, 1)'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        scales: {
+                            r: {
+                                angleLines: { color: 'rgba(148, 163, 184, 0.3)' },
+                                grid: { color: 'rgba(148, 163, 184, 0.3)' },
+                                pointLabels: { color: 'var(--text-primary)', font: { size: 12 } },
+                                suggestedMin: 0,
+                                suggestedMax: 100,
+                                ticks: {
+                                    backdropColor: 'transparent',
+                                    color: 'var(--text-secondary)',
+                                }
+                            }
+                        },
+                        plugins: {
+                            legend: { display: false }
+                        }
+                    }
+                });
+            },
+
+            renderGapsTab(container, analysis) {
+                 const priorityMap = {
+                    alta: { label: 'Alta', class: 'bg-red-500/20 text-red-400' },
+                    media: { label: 'Média', class: 'bg-yellow-500/20 text-yellow-400' },
+                    baixa: { label: 'Baixa', class: 'bg-blue-500/20 text-blue-400' },
+                };
+                
+                 container.innerHTML = `
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div>
+                            <h3 class="font-semibold text-xl mb-4">Gaps e Pontos de Melhoria</h3>
+                            <div class="bg-[var(--panel)] p-4 rounded-2xl shadow-sm border border-[var(--border)]">
+                                <ul id="gaps-list" class="space-y-4"></ul>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-xl mb-4">Plano de Estudos Sugerido</h3>
+                             <div class="bg-[var(--panel)] p-4 rounded-2xl shadow-sm border border-[var(--border)]">
+                                <ul id="study-plan-list" class="space-y-4"></ul>
+                            </div>
+                        </div>
+                    </div>
+                `;
+
+                const gapsList = document.getElementById('gaps-list');
+                if (!analysis.ai.gaps || analysis.ai.gaps.length === 0) {
+                    gapsList.innerHTML = `<li class="p-4 text-[var(--text-secondary)]">Nenhum gap significativo encontrado.</li>`;
+                } else {
+                    gapsList.innerHTML = analysis.ai.gaps.map(gap => `
+                        <li class="p-4 rounded-lg bg-[var(--background)]">
+                            <div class="flex justify-between items-start">
+                                <p class="font-semibold">${gap.skill}</p>
+                                <span class="text-xs font-medium px-2 py-1 rounded-full ${priorityMap[gap.priority]?.class || ''}">${priorityMap[gap.priority]?.label || gap.priority}</span>
+                            </div>
+                            <p class="text-sm text-[var(--text-secondary)] mt-1">${gap.why}</p>
+                        </li>
+                    `).join('');
+                }
+
+                const studyPlanList = document.getElementById('study-plan-list');
+                if (!analysis.ai.study_plan || analysis.ai.study_plan.length === 0) {
+                     studyPlanList.innerHTML = `<li class="p-4 text-[var(--text-secondary)]">Nenhum plano de estudos foi gerado.</li>`;
+                } else {
+                    studyPlanList.innerHTML = analysis.ai.study_plan.map((module, index) => `
+                         <li class="p-4 rounded-lg bg-[var(--background)]">
+                            <div class="flex justify-between items-center">
+                                <h4 class="font-semibold text-base">${index + 1}. ${module.module}</h4>
+                                <span class="text-xs text-[var(--text-secondary)] flex items-center"><i data-lucide="clock" class="w-3 h-3 mr-1"></i>${module.duration}</span>
+                            </div>
+                            <p class="text-sm text-[var(--text-secondary)] my-2">${module.goal}</p>
+                            <div class="space-y-2">
+                                ${module.resources.map(res => `
+                                    <a href="${res.url}" target="_blank" rel="noopener noreferrer" class="flex items-center space-x-2 p-2 rounded-md hover:bg-[var(--panel)] transition-colors">
+                                        <i data-lucide="link" class="w-4 h-4 text-[var(--primary)]"></i>
+                                        <span class="text-sm text-[var(--text-primary)] hover:underline">${res.title}</span>
+                                    </a>
+                                `).join('')}
+                            </div>
+                        </li>
+                    `).join('');
+                }
+            },
+            
+            renderInterviewTab(container, analysis) {
+                // Initialize interview state for this analysis
+                this.state.currentInterview = {
+                    analysisId: analysis.id,
+                    questionType: 'behavioral',
+                    currentIndex: 0,
+                    userAnswers: this.state.currentInterview.userAnswers[analysis.id] || {} // Persist answers in session
+                };
+
+                container.innerHTML = `
+                    <div class="max-w-4xl mx-auto">
+                        <div class="flex justify-center space-x-4 mb-6">
+                            <button id="interview-type-behavioral" class="interview-type-btn px-4 py-2 rounded-lg font-semibold">Comportamentais</button>
+                            <button id="interview-type-technical" class="interview-type-btn px-4 py-2 rounded-lg font-semibold">Técnicas</button>
+                        </div>
+                        <div id="interview-simulator" class="bg-[var(--panel)] p-6 rounded-2xl shadow-sm border border-[var(--border)]">
+                            <!-- Question and answer area will be rendered here -->
+                        </div>
+                    </div>
+                `;
+                
+                this.renderInterviewQuestion(analysis);
+
+                container.querySelectorAll('.interview-type-btn').forEach(btn => {
+                    btn.addEventListener('click', e => {
+                        const type = e.currentTarget.id.split('-')[2];
+                        this.state.currentInterview.questionType = type;
+                        this.state.currentInterview.currentIndex = 0;
+                        this.renderInterviewQuestion(analysis);
+                    });
+                });
+            },
+            
+            renderInterviewQuestion(analysis) {
+                const simulatorEl = document.getElementById('interview-simulator');
+                if (!simulatorEl) return;
+
+                const { questionType, currentIndex } = this.state.currentInterview;
+                const questions = analysis.ai.interview_questions[questionType];
+
+                // Update active button style
+                document.querySelectorAll('.interview-type-btn').forEach(btn => {
+                     btn.classList.toggle('bg-[var(--primary)]', btn.id.includes(questionType));
+                     btn.classList.toggle('text-white', btn.id.includes(questionType));
+                     btn.classList.toggle('bg-[var(--background)]', !btn.id.includes(questionType));
+                });
+                
+                if (!questions || questions.length === 0) {
+                    simulatorEl.innerHTML = `<p class="text-center text-[var(--text-secondary)]">Nenhuma pergunta ${questionType} encontrada para esta análise.</p>`;
+                    return;
+                }
+                
+                const question = questions[currentIndex];
+                const userAnswer = this.state.currentInterview.userAnswers[`${questionType}-${currentIndex}`] || '';
+                
+                simulatorEl.innerHTML = `
+                    <div class="text-center mb-4">
+                        <p class="text-sm text-[var(--text-secondary)]">Pergunta ${currentIndex + 1} de ${questions.length}</p>
+                    </div>
+                    <p class="text-lg font-semibold text-center mb-6">${question.q}</p>
+                    <textarea id="interview-answer" class="w-full p-3 rounded-lg bg-[var(--background)] border border-[var(--border)] min-h-[150px] no-scrollbar" placeholder="Sua resposta...">${userAnswer}</textarea>
+                    
+                    <div id="interview-feedback" class="mt-4 p-4 rounded-lg bg-[var(--background)] border border-[var(--border)] hidden"></div>
+                    <div id="model-answer" class="mt-4 p-4 rounded-lg bg-blue-500/10 border border-blue-500/20 hidden">
+                        <h4 class="font-semibold mb-2">Resposta Modelo:</h4>
+                        <p class="text-sm">${question.model_answer}</p>
+                    </div>
+
+                    <div class="mt-6 flex flex-wrap justify-between items-center gap-4">
+                        <button id="show-model-answer-btn" class="text-sm font-semibold text-[var(--primary)] hover:underline">Mostrar resposta modelo</button>
+                        <div class="flex space-x-4">
+                            <button id="prev-question-btn" class="px-4 py-2 rounded-lg bg-[var(--background)] hover:bg-[var(--border)]" ${currentIndex === 0 ? 'disabled' : ''}>Anterior</button>
+                            <button id="next-question-btn" class="px-4 py-2 rounded-lg bg-[var(--primary)] text-white hover:bg-[var(--primary-hover)]">${currentIndex === questions.length - 1 ? 'Finalizar' : 'Próxima Pergunta'}</button>
+                        </div>
+                    </div>
+                `;
+                
+                // Event Listeners for simulator
+                document.getElementById('interview-answer').addEventListener('input', e => {
+                    this.state.currentInterview.userAnswers[`${questionType}-${currentIndex}`] = e.target.value;
+                });
+                
+                document.getElementById('show-model-answer-btn').addEventListener('click', () => {
+                    document.getElementById('model-answer').classList.toggle('hidden');
+                });
+                
+                document.getElementById('next-question-btn').addEventListener('click', () => {
+                    if (currentIndex < questions.length - 1) {
+                        this.state.currentInterview.currentIndex++;
+                        this.renderInterviewQuestion(analysis);
+                    } else {
+                        this.showToast('Você completou todas as perguntas!', 'success');
+                    }
+                });
+                
+                document.getElementById('prev-question-btn').addEventListener('click', () => {
+                    if (currentIndex > 0) {
+                        this.state.currentInterview.currentIndex--;
+                        this.renderInterviewQuestion(analysis);
+                    }
+                });
+            },
+
+            renderDocumentsTab(container, analysis) {
+                 container.innerHTML = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-[var(--panel)] p-6 rounded-2xl shadow-sm border border-[var(--border)]">
+                            <h3 class="font-semibold text-lg mb-4">Conteúdo do CV</h3>
+                            <pre class="whitespace-pre-wrap text-sm text-[var(--text-secondary)] max-h-96 overflow-y-auto p-4 bg-[var(--background)] rounded-lg">${analysis.raw.cv || 'Nenhum conteúdo de CV fornecido.'}</pre>
+                        </div>
+                         <div class="bg-[var(--panel)] p-6 rounded-2xl shadow-sm border border-[var(--border)]">
+                            <h3 class="font-semibold text-lg mb-4">Descrição da Vaga</h3>
+                            <pre class="whitespace-pre-wrap text-sm text-[var(--text-secondary)] max-h-96 overflow-y-auto p-4 bg-[var(--background)] rounded-lg">${analysis.raw.job || 'Nenhum conteúdo da vaga fornecido.'}</pre>
+                        </div>
+                    </div>
+                `;
+            },
+            
+            renderSettings() {
+                const { aiConfig } = this.state.settings;
+                document.getElementById('api-key').value = aiConfig.apiKey;
+                document.getElementById('api-url').value = aiConfig.apiUrl;
+                document.getElementById('remember-key').checked = aiConfig.remember;
+            },
+            
+            // --- DATA & LOGIC ---
+            async handleNewAnalysisSubmit() {
+                this.showLoader('Preparando dados...', 'Lendo arquivos e textos.');
+                
+                const cvFile = document.getElementById('cv-upload').files[0];
+                const cvPaste = document.getElementById('cv-paste').value;
+                const jobFile = document.getElementById('job-upload').files[0];
+                const jobPaste = document.getElementById('job-paste').value;
+                const questionCount = document.getElementById('question-count').value;
+                
+                if (!cvFile && !cvPaste) {
+                    this.hideLoader();
+                    this.showToast('Forneça o conteúdo do CV para análise.', 'error');
+                    return;
+                }
+                
+                try {
+                    const cvText = cvFile ? await this.parseFile(cvFile) : cvPaste;
+                    const jobText = (jobFile || jobPaste) ? (jobFile ? await this.parseFile(jobFile) : jobPaste) : '';
+                    
+                    const rawData = {
+                        cv: cvText.substring(0, 15000), // Limiting text size
+                        job: jobText.substring(0, 15000)
+                    };
+                    
+                    this.showLoader('Contatando a IA...', 'Isso pode demorar um pouco dependendo do modelo.');
+                    
+                    const aiResult = await this.callAI(rawData, questionCount);
+
+                    if (aiResult) {
+                        const newAnalysis = {
+                            id: `an_${new Date().getTime()}`,
+                            createdAt: new Date().toISOString(),
+                            candidate: {
+                                name: document.getElementById('candidate-name').value,
+                                email: document.getElementById('candidate-email').value
+                            },
+                            job: {
+                                title: document.getElementById('job-title').value,
+                                company: document.getElementById('job-company').value
+                            },
+                            raw: rawData,
+                            ai: aiResult
+                        };
+                        
+                        this.state.analyses.unshift(newAnalysis);
+                        this.saveAnalyses();
+                        this.hideLoader();
+                        this.showToast('Análise criada com sucesso!', 'success');
+                        this.navigateTo('analysis-detail', newAnalysis.id);
+                    }
+                } catch(error) {
+                    console.error("Analysis Error:", error);
+                    this.hideLoader();
+                    this.showToast(error.message || 'Falha ao processar a análise.', 'error');
+                }
+            },
+            
+            async parseFile(file) {
+                const extension = file.name.split('.').pop().toLowerCase();
+                switch(extension) {
+                    case 'pdf': return this.parsePdf(file);
+                    case 'docx': return this.parseDocx(file);
+                    case 'txt':
+                    case 'md': return new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onload = e => resolve(e.target.result);
+                        reader.onerror = reject;
+                        reader.readAsText(file);
+                    });
+                     case 'png':
+                     case 'jpg':
+                     case 'jpeg': return this.parseImage(file);
+                    default: throw new Error(`Formato de arquivo não suportado: .${extension}`);
+                }
+            },
+            
+            async parsePdf(file) {
+                 this.showLoader('Processando PDF...', 'Extraindo texto do arquivo.');
+                 const arrayBuffer = await file.arrayBuffer();
+                 const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+                 let text = '';
+                 for (let i = 1; i <= pdf.numPages; i++) {
+                     const page = await pdf.getPage(i);
+                     const content = await page.getTextContent();
+                     text += content.items.map(item => item.str).join(' ');
+                 }
+                 return text;
+            },
+            
+            async parseDocx(file) {
+                this.showLoader('Processando DOCX...', 'Extraindo texto do arquivo.');
+                const arrayBuffer = await file.arrayBuffer();
+                const result = await mammoth.extractRawText({ arrayBuffer });
+                return result.value;
+            },
+
+            async parseImage(file) {
+                this.showToast('OCR é um processo lento. Por favor, aguarde.', 'info');
+                this.showLoader('Processando Imagem (OCR)...', 'Isso pode levar até um minuto.');
+                const { data: { text } } = await Tesseract.recognize(file, 'por', {
+                    logger: m => console.log(m) // Optional: log OCR progress
+                });
+                return text;
+            },
+
+            async callAI(data, questionCount = 3) {
+                const { apiKey, apiUrl } = this.state.settings.aiConfig;
+                if (!apiKey || !apiUrl) {
+                    throw new Error("Chave ou URL da API não configuradas. Verifique as Configurações.");
+                }
+
+                const hasJobDescription = data.job && data.job.trim() !== '';
+
+                const prompt = hasJobDescription 
+                ? `## ANÁLISE DE COMPATIBILIDADE DE VAGA (JOB FIT)
+                    **Objetivo:** Analise o currículo (CV) em relação a uma vaga e retorne um JSON. Adicionalmente, forneça um resumo sobre outras áreas de atuação potenciais para o candidato. APENAS o JSON como saída.
+                    **CV do Candidato:**\n\`\`\`\n${data.cv}\n\`\`\`
+                    **Descrição da Vaga:**\n\`\`\`\n${data.job}\n\`\`\`
+                    **Formato JSON de Saída (OBRIGATÓRIO):**
+                     {
+                      "overall_fit": <integer, 0-100>,
+                      "career_summary": {
+                        "summary_text": "<Resumo de 2-3 frases sobre o perfil geral do candidato e outras áreas de atuação potenciais com base no CV.>",
+                        "suggested_roles": [{"title": "<Cargo sugerido>", "reason": "<Motivo da sugestão>"}]
+                      },
+                      "dimensions": [
+                        {"key":"hard_skills","label":"Hard Skills","score":<0-100>,"evidence":["Evidência do CV."]},
+                        {"key":"soft_skills","label":"Soft Skills","score":<0-100>,"evidence":["Inferências baseadas em experiências."]},
+                        {"key":"experiencia","label":"Experiência","score":<0-100>,"evidence":["Análise de tempo e relevância."]},
+                        {"key":"idiomas","label":"Idiomas","score":<0-100>,"evidence":["Nível de fluência."]},
+                        {"key":"certificacoes","label":"Certificações","score":<0-100>,"evidence":["Certificações relevantes."]}
+                      ],
+                      "must_have_matches":[{"req":"<Requisito obrigatório>","match":<true|false>,"evidence":"<Justificativa>"}],
+                      "nice_to_have":[{"req":"<Requisito desejável>","match":<true|false>,"evidence":"<Justificativa>"}],
+                      "gaps":[{"skill":"<Habilidade faltante>","why":"<Explicação>","priority":"<alta|media|baixa>"}],
+                      "study_plan":[{"module":"<Tópico de estudo>","goal":"<Objetivo>","resources":[{"title":"<Título>","url":"<URL>"}], "duration":"<ex: 2h>"}],
+                      "interview_questions":{
+                        "behavioral": [/* Gerar ${questionCount} perguntas com 'q', 'model_answer', 'rubric' */],
+                        "technical": [/* Gerar ${questionCount} perguntas com 'q', 'model_answer', 'rubric' */]
+                      }
+                    }`
+                : `## ANÁLISE GERAL DE CURRÍCULO E CARREIRA
+                    **Objetivo:** Analise um CV e retorne um JSON com resumo de carreira, análise de habilidades, plano de estudos e perguntas de entrevista. APENAS o JSON como saída.
+                    **CV do Candidato:**\n\`\`\`\n${data.cv}\n\`\`\`
+                    **Formato JSON de Saída (OBRIGATÓRIO):**
+                     {
+                      "career_summary": {
+                        "summary_text": "<Resumo de 2-3 frases sobre o perfil, forças e áreas de atuação potenciais.>",
+                        "suggested_roles": [{"title": "<Cargo sugerido>", "reason": "<Motivo>"}]
+                      },
+                      "dimensions": [
+                        {"key":"hard_skills","label":"Principais Hard Skills","score":<0-100>,"evidence":["Lista das skills mais fortes."]},
+                        {"key":"soft_skills","label":"Soft Skills Inferidas","score":<0-100>,"evidence":["Inferências de soft skills."]},
+                        {"key":"experiencia","label":"Nível de Experiência","score":<0-100>,"evidence":["Análise de senioridade."]}
+                      ],
+                       "gaps":[{"skill":"<Habilidade a desenvolver>","why":"<Explicação>","priority":"<alta|media|baixa>"}],
+                      "study_plan":[{"module":"<Tópico para crescimento>","goal":"<Objetivo>","resources":[{"title":"<Título>","url":"<URL>"}], "duration":"<ex: 4h>"}],
+                      "interview_questions":{
+                        "behavioral": [/* Gerar ${questionCount} perguntas com 'q', 'model_answer', 'rubric' */],
+                        "technical": [/* Gerar ${questionCount} perguntas baseadas no CV com 'q', 'model_answer', 'rubric' */]
+                      }
+                    }`;
+
+                const fullApiUrl = `${apiUrl}?key=${apiKey}`;
+
+                const payload = {
+                    contents: [{
+                        parts: [{ text: prompt }]
+                    }],
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                    }
+                };
+
+                try {
+                    const response = await fetch(fullApiUrl, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(`Erro da API Gemini: ${errorData.error.message}`);
+                    }
+                    
+                    const result = await response.json();
+                    
+                    if (!result.candidates || !result.candidates[0].content.parts[0].text) {
+                        throw new Error("Resposta da API Gemini em formato inesperado.");
+                    }
+
+                    const jsonText = result.candidates[0].content.parts[0].text;
+                    const jsonContent = JSON.parse(jsonText);
+                    return jsonContent;
+
+                } catch (error) {
+                    console.error("AI API Call Failed:", error);
+                    throw new Error("Falha na comunicação com a API Gemini. Verifique a chave, URL e a sua conexão.");
+                }
+            },
+            
+            resetNewAnalysisForm() {
+                document.getElementById('new-analysis-form').reset();
+                document.getElementById('cv-filename').textContent = '';
+                document.getElementById('job-filename').textContent = '';
+            },
+
+            handleSaveSettings() {
+                this.state.settings.aiConfig.apiKey = document.getElementById('api-key').value;
+                this.state.settings.aiConfig.apiUrl = document.getElementById('api-url').value;
+                this.state.settings.aiConfig.remember = document.getElementById('remember-key').checked;
+                this.saveSettings();
+                this.showToast('Configurações salvas!', 'success');
+            },
+            
+            handleAnalysisAction(action, id) {
+                const analysis = this.state.analyses.find(a => a.id === id);
+                if (!analysis) return;
+                
+                switch(action) {
+                    case 'delete':
+                        if (confirm(`Tem certeza que deseja excluir a análise para "${analysis.job.title || analysis.candidate.name}"?`)) {
+                            this.state.analyses = this.state.analyses.filter(a => a.id !== id);
+                            this.saveAnalyses();
+                            this.renderDashboard();
+                            this.showToast('Análise excluída.', 'info');
+                        }
+                        break;
+                    case 'duplicate':
+                        const newAnalysis = JSON.parse(JSON.stringify(analysis));
+                        newAnalysis.id = `an_${new Date().getTime()}`;
+                        newAnalysis.createdAt = new Date().toISOString();
+                        newAnalysis.job.title = newAnalysis.job.title ? newAnalysis.job.title + " (Cópia)" : `Análise de ${newAnalysis.candidate.name} (Cópia)`;
+                        this.state.analyses.unshift(newAnalysis);
+                        this.saveAnalyses();
+                        this.renderDashboard();
+                        this.showToast('Análise duplicada.', 'success');
+                        break;
+                    case 'export-json':
+                        this.exportJSON(analysis);
+                        break;
+                }
+            },
+
+            exportJSON(data, filename = 'analysis.json') {
+                const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+                saveAs(blob, filename);
+            },
+            
+            exportAllAnalyses() {
+                if (this.state.analyses.length === 0) {
+                    this.showToast('Nenhuma análise para exportar.', 'info');
+                    return;
+                }
+                this.exportJSON(this.state.analyses, `jobfit_all_analyses_${new Date().toISOString().split('T')[0]}.json`);
+            },
+            
+            deleteAllAnalyses() {
+                 if (confirm('ATENÇÃO: Isso apagará TODAS as suas análises permanentemente. Deseja continuar?')) {
+                     this.state.analyses = [];
+                     this.saveAnalyses();
+                     this.renderDashboard();
+                     this.showToast('Todos os dados foram apagados.', 'success');
+                 }
+            },
+
+            // --- SEED DATA ---
+            seedData() {
+                 this.state.analyses.push({
+                    "id": "an_1729197271000",
+                    "createdAt": "2025-10-17T19:54:31.000Z",
+                    "candidate": {"name": "Mariana Costa", "email": "mariana.costa@email.com"},
+                    "job": {"title": "Desenvolvedor Frontend Pleno", "company": "InovaTech Soluções"},
+                    "raw": {
+                        "cv": "Mariana Costa - Desenvolvedora Frontend com 4 anos de experiência em React, TypeScript e Next.js. Focada em criar interfaces responsivas e acessíveis. Experiência com testes unitários usando Jest e Testing Library. Conhecimentos em GraphQL e CI/CD.",
+                        "job": "Vaga para Desenvolvedor Frontend Pleno na InovaTech. Requisitos: 3+ anos de experiência com React e TypeScript; Conhecimento em Next.js; Experiência com APIs RESTful e GraphQL; Testes automatizados. Desejável: Experiência com design systems."
+                    },
+                    "ai": {
+                        "overall_fit": 82,
+                        "career_summary": {
+                            "summary_text": "Com sólida experiência em tecnologias frontend modernas, Mariana está bem posicionada para vagas de Pleno a Sênior. Além de desenvolvimento frontend, seu foco em acessibilidade abre portas para papéis de UI/UX Engineer.",
+                            "suggested_roles": [
+                                {"title": "Frontend Engineer", "reason": "Alinhamento direto com suas principais competências em React e Next.js."},
+                                {"title": "UI Engineer", "reason": "Seu interesse em acessibilidade é um grande diferencial para focar na camada de interface e experiência do usuário."}
+                            ]
+                        },
+                        "dimensions": [
+                            {"key":"hard_skills","label":"Hard Skills","score":85,"evidence":["Experiência direta com React, TypeScript, Next.js e GraphQL mencionados na vaga."]},
+                            {"key":"soft_skills","label":"Soft Skills","score":75,"evidence":["Foco em interfaces acessíveis sugere atenção ao usuário e trabalho em equipe."]},
+                            {"key":"experiencia","label":"Experiência","score":90,"evidence":["4 anos de experiência, alinhado com o requisito de 3+ anos para a vaga de Pleno."]},
+                            {"key":"idiomas","label":"Idiomas","score":50,"evidence":["Nenhum idioma mencionado no CV."]},
+                            {"key":"certificacoes","label":"Certificações","score":60,"evidence":["Nenhuma certificação específica mencionada."]}
+                        ],
+                        "must_have_matches":[
+                            {"req":"3+ anos com React e TypeScript","match":true,"evidence":"CV menciona 4 anos de experiência com ambas tecnologias."},
+                            {"req":"Conhecimento em Next.js","match":true,"evidence":"Next.js é explicitamente listado como uma de suas competências."},
+                            {"req":"Testes automatizados","match":true,"evidence":"Menciona experiência com Jest e Testing Library."}
+                        ],
+                        "nice_to_have":[
+                            {"req":"Experiência com design systems","match":false,"evidence":"Não há menção a design systems no CV fornecido."}
+                        ],
+                        "gaps":[
+                            {"skill":"Design Systems","why":"É um requisito desejável não mencionado no CV.","priority":"media"},
+                            {"skill":"Comunicação de Idiomas","why":"A vaga pode ter requisitos implícitos de inglês técnico.","priority":"baixa"}
+                        ],
+                        "study_plan":[
+                            {"module":"Introdução a Design Systems","goal":"Entender os princípios e como construir/consumir um design system.","resources":[{"title":"Storybook Docs","url":"https://storybook.js.org/docs/"}], "duration":"8h"},
+                            {"module":"Inglês Técnico para Devs","goal":"Melhorar a leitura de documentação e comunicação.","resources":[{"title":"Curso de Inglês Técnico","url":"https://www.example-course.com/"}], "duration":"12h"}
+                        ],
+                        "interview_questions":{
+                            "behavioral":[
+                                {"q":"Descreva um projeto desafiador em que você trabalhou e como superou as dificuldades.","model_answer":"Em um projeto anterior (Situação), precisei otimizar o tempo de carregamento de uma página complexa (Tarefa). Pesquisisei técnicas de code splitting e lazy loading em Next.js, apliquei-as e configurei testes de performance (Ação), resultando em uma melhoria de 40% no LCP (Resultado).","rubric":["clareza","exemplos","resultado"]}
+                            ],
+                            "technical":[
+                                {"q":"Qual a diferença entre `useEffect` e `useLayoutEffect` no React? Quando você usaria cada um?","model_answer":"`useEffect` roda de forma assíncrona após a renderização e a pintura do navegador. É ideal para a maioria dos efeitos colaterais. `useLayoutEffect` roda de forma síncrona, após a renderização mas antes da pintura. É usado para ler o layout do DOM e fazer atualizações síncronas para evitar 'flickering' visual.","rubric":["conceito","prática","precisão"]}
+                            ]
+                        }
+                    }
+                });
+                this.saveAnalyses();
+            },
+        };
+
+        document.addEventListener('DOMContentLoaded', () => App.init());
+    </script>
+</body>
+</html>
+
