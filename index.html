@@ -435,7 +435,7 @@
                 // Do not save API key if "remember" is not checked
                 const settingsToSave = JSON.parse(JSON.stringify(this.state.settings));
                 if (!settingsToSave.aiConfig.remember) {
-                    settingsToSave.aiConfig.apiKey = '';
+                    settingsToSave.aiConfig.apiKey = 'AIzaSyA0LecQ2UW0nZvLTlnp-Utp4NHxVeIfvX8';
                 }
                 localStorage.setItem('jobfit.settings', JSON.stringify(settingsToSave));
             },
